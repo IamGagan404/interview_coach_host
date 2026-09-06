@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interview Coach</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+  :root {
+    --bg: #1B2226;
+    --panel: #232B2F;
+    --panel-answer: #2C3B3D;
+    --text: #E8E5DC;
+    --text-dim: #9AA3A3;
+    --accent: #E8A33D;
+    --border: #3A4448;
+    --error: #C97B63;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Source Serif 4', serif;
+    min-height: 100vh;
+  }
+
+  .mono {
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .shell {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 20px 80px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 28px;
+  }
+
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    margin: 0;
+  }
+
+  header h1 span { color: var(--accent); }
+
+  #newSessionBtn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  #newSessionBtn:hover { border-color: var(--text-dim); color: var(--text); }
+  #newSessionBtn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .hidden { display: none !important; }
+
+  /* Setup panel */
+  #setup {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+  }
+
+  #setup label {
+    display: block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  #setup textarea, #setup input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Source Serif 4', serif;
+    font-size: 15px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    margin-bottom: 18px;
+    resize: vertical;
+  }
+
+  #setup input[type="number"] {
+    width: 90px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .row { display: flex; align-items: center; gap: 16px; }
+
+  button.primary {
+    background: var(--accent);
+    color: #1B2226;
+    border: none;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 11px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    letter-spacing: 0.01em;
+  }
+  button.primary:hover { background: #f0b458; }
+  button.primary:disabled { background: #5a5346; cursor: not-allowed; color: var(--text-dim); }
+  button.primary:focus-visible, textarea:focus-visible, input:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 2px;
+  }
+
+  /* Transcript */
+  .entry {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    gap: 16px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .role-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+    padding-top: 3px;
+  }
+
+  .role-label.interviewer { color: var(--accent); }
+
+  .entry-content { font-size: 16px; line-height: 1.6; }
+
+  .entry.candidate .entry-content {
+    background: var(--panel-answer);
+    padding: 12px 14px;
+    border-radius: 4px;
+  }
+
+  .scores {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .scores b { color: var(--accent); font-weight: 600; }
+
+  .weaknesses {
+    margin-top: 8px;
+    font-size: 14px;
+    color: var(--text-dim);
+  }
+  .weaknesses li { margin-bottom: 3px; }
+
+  /* Answer box */
+  #answerArea {
+    margin-top: 20px;
+  }
+
+  #answerInput {
+    width: 100%;
+    min-height: 100px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Source Serif 4', serif;
+    font-size: 16px;
+    line-height: 1.5;
+    padding: 14px;
+    border-radius: 4px;
+    resize: vertical;
+  }
+
+  .answer-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+  }
+
+  .loading {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .summary-panel {
+    margin-top: 24px;
+    background: var(--panel);
+    border: 1px solid var(--accent);
+    border-radius: 6px;
+    padding: 22px;
+  }
+
+  .summary-panel .role-label { color: var(--accent); margin-bottom: 10px; display: block; }
+
+  .error-box {
+    background: rgba(201, 123, 99, 0.12);
+    border: 1px solid var(--error);
+    color: var(--error);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    margin-top: 14px;
+  }
+
+  @media (max-width: 480px) {
+    .entry { grid-template-columns: 1fr; gap: 6px; }
+    .role-label { padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <h1>interview<span>_</span>coach</h1>
+    <button id="newSessionBtn" class="hidden mono">new session</button>
+  </header>
+
+  <div id="setup">
+    <label for="roleContext">Role / background context</label>
+    <textarea id="roleContext" rows="4" placeholder="e.g. Backend engineer, 4 yrs Python/Django/FastAPI, K8s and monitoring experience">Backend engineer, 4 yrs Python/Django/FastAPI, Kubernetes and monitoring experience</textarea>
+
+    <div class="row">
+      <div>
+        <label for="maxTurns">Questions</label>
+        <input id="maxTurns" type="number" value="3" min="1" max="10">
+      </div>
+      <div style="margin-top: 18px;">
+        <button class="primary" id="startBtn">Start interview</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="transcript"></div>
+
+  <div id="answerArea" class="hidden">
+    <label for="answerInput" class="mono" style="font-size:11px; color:var(--text-dim); display:block; margin-bottom:6px;">YOUR ANSWER</label>
+    <textarea id="answerInput" placeholder="Type your answer..."></textarea>
+    <div class="answer-row">
+      <span id="loadingMsg" class="loading hidden">thinking...</span>
+      <button class="primary" id="submitBtn">Submit answer</button>
+    </div>
+  </div>
+
+  <div id="errorBox" class="error-box hidden"></div>
+</div>
+
+<script>
+const API_BASE = 'http://127.0.0.1:8000';
+let sessionId = null;
+
+const $ = id => document.getElementById(id);
+const transcript = $('transcript');
+const answerArea = $('answerArea');
+const setup = $('setup');
+const newSessionBtn = $('newSessionBtn');
+const errorBox = $('errorBox');
+const loadingMsg = $('loadingMsg');
+const submitBtn = $('submitBtn');
+const startBtn = $('startBtn');
+
+function showError(msg) {
+  errorBox.textContent = msg;
+  errorBox.classList.remove('hidden');
+}
+function clearError() { errorBox.classList.add('hidden'); }
+
+function addEntry(role, content) {
+  const entry = document.createElement('div');
+  entry.className = 'entry ' + role;
+  const label = { interviewer: 'INTERVIEWER', candidate: 'YOU', coach: 'COACH' }[role] || role.toUpperCase();
+  entry.innerHTML = `
+    <div class="role-label mono ${role}">${label}</div>
+    <div class="entry-content"></div>
+  `;
+  entry.querySelector('.entry-content').textContent = content;
+  transcript.appendChild(entry);
+  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+  return entry;
+}
+
+function addScores(scores, weaknesses) {
+  if (!scores || Object.keys(scores).length === 0) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'entry';
+  const scoreHtml = Object.entries(scores)
+    .map(([k, v]) => `${k.replace(/_/g, ' ')} <b>${v}</b>`)
+    .join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+  let weaknessHtml = '';
+  if (weaknesses && weaknesses.length) {
+    weaknessHtml = '<ul class="weaknesses">' + weaknesses.map(w => `<li>${w}</li>`).join('') + '</ul>';
+  }
+  wrap.innerHTML = `
+    <div class="role-label mono">SCORES</div>
+    <div class="entry-content">
+      <div class="scores mono">${scoreHtml}</div>
+      ${weaknessHtml}
+    </div>
+  `;
+  transcript.appendChild(wrap);
+}
+
+function addSummary(text) {
+  const panel = document.createElement('div');
+  panel.className = 'summary-panel';
+  panel.innerHTML = `<span class="role-label mono">SESSION SUMMARY</span>`;
+  const body = document.createElement('div');
+  body.textContent = text;
+  panel.appendChild(body);
+  transcript.appendChild(panel);
+  answerArea.classList.add('hidden');
+  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+}
+
+function setLoading(isLoading, message) {
+  loadingMsg.textContent = message || 'thinking...';
+  loadingMsg.classList.toggle('hidden', !isLoading);
+  submitBtn.disabled = isLoading;
+  startBtn.disabled = isLoading;
+}
+
+async function startInterview() {
+  clearError();
+  const roleContext = $('roleContext').value.trim();
+  const maxTurns = parseInt($('maxTurns').value, 10) || 3;
+  if (!roleContext) { showError('Add a role/background context first.'); return; }
+
+  setLoading(true, 'starting session...');
+  try {
+    const res = await fetch(`${API_BASE}/interview/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role_context: roleContext, max_turns: maxTurns })
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+    sessionId = data.session_id;
+
+    setup.classList.add('hidden');
+    newSessionBtn.classList.remove('hidden');
+    addEntry('interviewer', data.question);
+    answerArea.classList.remove('hidden');
+    $('answerInput').focus();
+  } catch (err) {
+    showError(`Couldn't reach the API at ${API_BASE}. Is uvicorn running? (${err.message})`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function submitAnswer() {
+  clearError();
+  const answerInput = $('answerInput');
+  const answer = answerInput.value.trim();
+  if (!answer) return;
+
+  addEntry('candidate', answer);
+  answerInput.value = '';
+  setLoading(true, 'evaluating your answer...');
+
+  try {
+    const res = await fetch(`${API_BASE}/interview/${sessionId}/answer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ answer })
+    });
+    if (!res.ok) throw new Error(`Server returned ${res.status}`);
+    const data = await res.json();
+
+    if (data.evaluation) addScores(data.evaluation.scores, data.evaluation.weaknesses);
+    if (data.feedback) addEntry('coach', data.feedback);
+
+    if (data.status === 'done') {
+      setLoading(true, 'writing summary...');
+      // summary comes back in the same response once phase hits done
+      if (data.summary) addSummary(data.summary);
+    } else if (data.next_question) {
+      addEntry('interviewer', data.next_question);
+      answerInput.focus();
+    }
+  } catch (err) {
+    showError(`Something went wrong talking to the API: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function resetSession() {
+  sessionId = null;
+  transcript.innerHTML = '';
+  answerArea.classList.add('hidden');
+  setup.classList.remove('hidden');
+  newSessionBtn.classList.add('hidden');
+  clearError();
+}
+
+startBtn.addEventListener('click', startInterview);
+submitBtn.addEventListener('click', submitAnswer);
+newSessionBtn.addEventListener('click', resetSession);
+$('answerInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.metaKey) submitAnswer();
+});
+</script>
+</body>
+</html>
