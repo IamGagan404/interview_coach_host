@@ -6,7 +6,7 @@ Streamlit frontend for the AI Interview Prep Coach.
 import requests
 import streamlit as st
 
-BACKEND_URL = "http://127.0.0.1:8000"  # change when deployed
+BACKEND_URL = "https://interview-coach-host.onrender.com" # change when deployed
 
 
 def start_interview(role_context: str, max_turns: int) -> dict:
