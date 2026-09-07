@@ -1,7 +1,5 @@
 """
 FastAPI service for the AI Interview Prep Coach.
-Unlike a one-shot pipeline, this is conversational: each user message
-re-enters the graph carrying the accumulated session state.
 
 Endpoints:
   POST /interview/start              -> creates a session, returns first question
@@ -13,8 +11,7 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-
-
+from db_handlers import init_db,save_session,load_session,session_exists
 from interview_graph import interview_graph, InterviewState
 
 app = FastAPI(title="Interview Coach API")
@@ -26,8 +23,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# In-memory session store — swap for Postgres/Redis for persistence across restarts
-sessions: dict[str, InterviewState] = {}
+# sessions: dict[str, InterviewState] = {}
 
 
 class StartRequest(BaseModel):
@@ -38,6 +34,10 @@ class StartRequest(BaseModel):
 class AnswerRequest(BaseModel):
     answer: str
 
+
+@app.on_event("startup")
+def startup():
+    init_db()
 
 @app.post("/interview/start")
 async def start_interview(req: StartRequest):
@@ -54,27 +54,29 @@ async def start_interview(req: StartRequest):
         "phase": "asking",
     }
     state = interview_graph.invoke(state)
-    sessions[session_id] = state
+    # sessions[session_id] = state
+    save_session(session_id,state)
     return {"session_id": session_id, "question": state["current_question"]}
 
 
 @app.post("/interview/{session_id}/answer")
 async def submit_answer(session_id: str, req: AnswerRequest):
-    if session_id not in sessions:
-        raise HTTPException(404, "session not found")
+    # if session_id not in sessions:
+    #     raise HTTPException(404, "session not found")
+    if not session_exists(session_id):
+        raise HTTPException(404,"Session not found.")
 
-    state = sessions[session_id]
+    # state = sessions[session_id]
+    state = load_session(session_id)
     if state["phase"] == "done":
         return {"status": "done", "message": "Session already complete. Fetch /transcript for the summary."}
 
     state["last_answer"] = req.answer
-
-    # Evaluate, then coach — two graph invocations, since each node exits to END
-    # and the API layer drives the next routing decision.
     state = interview_graph.invoke(state)   # evaluator
     state = interview_graph.invoke(state)   # coach
 
-    sessions[session_id] = state
+    # sessions[session_id] = state
+    save_session(session_id,state)
 
     response = {
         "evaluation": state["last_evaluation"],
@@ -84,11 +86,13 @@ async def submit_answer(session_id: str, req: AnswerRequest):
 
     if state["phase"] == "asking":
         state = interview_graph.invoke(state)  # get next question
-        sessions[session_id] = state
+        # sessions[session_id] = state
+        save_session(session_id,state)
         response["next_question"] = state["current_question"]
     elif state["phase"] == "done":
         state = interview_graph.invoke(state)  # run summary node
-        sessions[session_id] = state
+        # sessions[session_id] = state
+        save_session(session_id,state)
         response["summary"] = state["conversation"][-1]["content"]
 
     return response
@@ -96,6 +100,11 @@ async def submit_answer(session_id: str, req: AnswerRequest):
 
 @app.get("/interview/{session_id}/transcript")
 async def get_transcript(session_id: str):
-    if session_id not in sessions:
-        raise HTTPException(404, "session not found")
-    return {"transcript": sessions[session_id]["conversation"]}
+    if not session_exists(session_id):
+        raise HTTPException(404,"Session not found.")
+    state = load_session(session_id)
+    if state is None:
+        raise HTTPException(404,"session not found")
+    # return {"transcript": sessions[session_id]["conversation"]}
+    return {"transcript": state["conversation"]}
+

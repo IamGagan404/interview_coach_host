@@ -6,8 +6,13 @@ Feedback Coach based on session phase. Loops per user turn until session ends.
 
 from typing import TypedDict, List, Literal, Optional
 from langgraph.graph import StateGraph, END
-from langchain_ollama import ChatOllama
+# from langchain_ollama import ChatOllama
 from langchain_core.messages import HumanMessage
+from langchain_google_genai import ChatGoogleGenerativeAI
+import os, streamlit as st
+from dotenv import load_dotenv
+load_dotenv()
+
 
 
 # ---------- 1. State ----------
@@ -23,8 +28,38 @@ class InterviewState(TypedDict):
     phase: Literal["asking", "evaluating", "coaching", "done"]
 
 
-llm = ChatOllama(model="llama3.1", temperature=0.4)
+# llm = ChatOllama(model="llama3.1", temperature=0.4)
 
+
+def get_gemini_api_key():
+    # if "GEMINI_API_KEY" in st.secrets:
+    #     return st.secrets["GEMINI_API_KEY"]
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY not set")
+    return key
+
+llm = ChatGoogleGenerativeAI(
+    model="gemini-3.5-flash-lite",
+    google_api_key=get_gemini_api_key(),
+    temperature=0.4,
+)
+
+def extract_text(response) -> str:
+    """Normalize LLM response content to a plain string, handling both
+    plain-string and list-of-blocks formats (Gemini sometimes returns the latter)."""
+    content = response.content
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and "text" in block:
+                parts.append(block["text"])
+        return "".join(parts).strip()
+    return str(content).strip()
 
 # ---------- 2. Agent nodes ----------
 def question_generator_node(state: InterviewState) -> InterviewState:
@@ -35,7 +70,7 @@ Topics already covered: {state['topics_covered'] or 'none yet'}
 
 Ask ONE new interview question that has not been covered. Return only the question."""
     response = llm.invoke([HumanMessage(content=prompt)])
-    question = response.content.strip()
+    question = extract_text(response)
 
     conversation = state["conversation"] + [{"role": "interviewer", "content": question}]
     return {
@@ -44,32 +79,6 @@ Ask ONE new interview question that has not been covered. Return only the questi
         "conversation": conversation,
         "phase": "evaluating",
     }
-
-
-# def answer_evaluator_node(state: InterviewState) -> InterviewState:
-#     prompt = f"""Question: {state['current_question']}
-# Candidate's answer: {state['last_answer']}
-
-# Score the answer 1-5 on: structure, specificity, technical_accuracy, impact.
-# List 1-3 concrete weaknesses. Respond as JSON:
-# {{"scores": {{"structure": n, "specificity": n, "technical_accuracy": n, "impact": n}}, "weaknesses": ["..."]}}"""
-#     response = llm.invoke([HumanMessage(content=prompt)])
-
-#     import json,re
-#     raw = response.content.strip()
-#     raw = re.sub(r"^```(json)?|```$", "", raw, flags=re.MULTILINE).strip()
-
-#     try:
-#         evaluation = json.loads(raw)
-#     except json.JSONDecodeError:
-#         evaluation = {"scores": {}, "weaknesses": ["Could not parse evaluation"], "raw_response": raw}
-
-#     return {
-#         **state,
-#         "last_evaluation": evaluation,
-#         "topics_covered": state["topics_covered"] + [state["current_question"]],
-#         "phase": "coaching",
-#     }
 
 
 
@@ -99,7 +108,7 @@ List 1-3 concrete weaknesses. Respond as JSON:
                     return text[start:i + 1]
         return text[start:]  # unbalanced — let json.loads raise and hit the fallback
  
-    raw = response.content.strip()
+    raw = extract_text(response)
     candidate = extract_json_object(raw)
     try:
         evaluation = json.loads(candidate)
@@ -123,7 +132,7 @@ Evaluation: {state['last_evaluation']}
 Give 2-3 sentences of specific, encouraging coaching feedback. Be concrete —
 reference what they actually said, not generic advice."""
     response = llm.invoke([HumanMessage(content=prompt)])
-    feedback = response.content.strip()
+    feedback = extract_text(response)
 
     conversation = state["conversation"] + [{"role": "coach", "content": feedback}]
     turn_count = state["turn_count"] + 1
@@ -133,7 +142,7 @@ reference what they actually said, not generic advice."""
         **state,
         "conversation": conversation,
         "turn_count": turn_count,
-        "last_answer": None,       # clear so the next question-gen pass runs cleanly
+        "last_answer": None,       
         "phase": next_phase,
     }
 
@@ -144,7 +153,7 @@ across all answers — recurring strengths and recurring weaknesses.
 
 Transcript: {state['conversation']}"""
     response = llm.invoke([HumanMessage(content=prompt)])
-    conversation = state["conversation"] + [{"role": "summary", "content": response.content.strip()}]
+    conversation = state["conversation"] + [{"role": "summary", "content": extract_text(response)}]
     return {**state, "conversation": conversation}
 
 
@@ -177,8 +186,6 @@ def build_graph():
         "summary": "summary",
     })
 
-    # After each agent runs once, the graph exits back to the API layer —
-    # the API re-invokes the graph on the next user message with updated state.
     graph.add_edge("question_generator", END)
     graph.add_edge("answer_evaluator", END)
     graph.add_edge("feedback_coach", END)
@@ -201,11 +208,11 @@ if __name__ == "__main__":
         "max_turns": 3,
         "phase": "asking",
     }
-    # Turn 1: get a question
+
     state = interview_graph.invoke(state)
     print(state["current_question"])
 
-    # Simulate the user answering, then re-invoke for evaluation + coaching
+    
     state["last_answer"] = "I optimized a Python pipeline using multiprocessing, cut runtime by 50%."
     state = interview_graph.invoke(state)
     state = interview_graph.invoke(state)  # coaching pass
