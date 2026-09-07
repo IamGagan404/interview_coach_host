@@ -32,8 +32,8 @@ class InterviewState(TypedDict):
 
 
 def get_gemini_api_key():
-    if "GEMINI_API_KEY" in st.secrets:
-        return st.secrets["GEMINI_API_KEY"]
+    # if "GEMINI_API_KEY" in st.secrets:
+    #     return st.secrets["GEMINI_API_KEY"]
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         raise RuntimeError("GEMINI_API_KEY not set")
